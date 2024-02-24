@@ -3,7 +3,7 @@
             [clj-time.coerce :as time]))
 
 (defn debit-transaction [actual-balance value limit]
-  (let [new-balance (- value actual-balance)
+  (let [new-balance (- actual-balance value )
         valid-balance? (< 0 (+ limit new-balance))]
    (when valid-balance? new-balance)))
 
@@ -12,17 +12,16 @@
 
 (defn new-balance
   [{:keys [balance limit]}
-   {:keys [value transaction-type]}]
+   {:keys [value type]}]
   (cond
-   (= :d transaction-type) (debit-transaction balance value limit)
-   (= :c transaction-type) (credit-transaction balance value)))
+   (= :d type) (debit-transaction balance value limit)
+   (= :c type) (credit-transaction balance value)))
 
-(defn last-transactions
+(defn sort-by-date
   [transactions-list]
-  (mapv #(adapter/transaction-db->out %) transactions-list))
+  (take 10 (sort-by #(time/from-string (get % 2)) transactions-list)))
 
-(defn last-10-transactions [transactions-list]
-  (take 10 (reverse (sort-by #(time/from-string (:realizada_em %)) (last-transactions transactions-list)))))
-
-(defn has-nil-value? [m]
-  (some? (some nil? (vals m))))
+(defn last-10-transactions
+  [transactions-list]
+  (->> (sort-by-date transactions-list)
+  (mapv #(adapter/transaction-db->out %))))

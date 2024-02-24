@@ -1,44 +1,41 @@
 (ns jaiaani.controller
   (:require [clojure.data.json :as json]
             [jaiaani.database.queries :as db.queries]
+            [jaiaani.database.operations :as db.ops]
             [jaiaani.logic.transactions :as logic]
             [jaiaani.adapter :as adapter]))
+(defn get-client-handler-wrapper
+  [body handler]
+  (let [get-client (db.queries/client (:id body))
+        client (when (not-empty get-client) (adapter/out-client->in get-client))]
+    (if client
+      (handler body client)
+      {:status 404
+       :headers {"Content-Type" "text/plain"}
+       :body "Hmm...No, i don't know this guy"})))
 
-(defn update-balance-response
-  [id
-   transaction]
-  (let [id (Integer/parseInt id)
-        client (when id (adapter/client-out->in id (db.queries/client id)))
-        valid-client? (not (logic/has-nil-value? client))
-        transaction (when valid-client? (adapter/transaction-out->in transaction))
+(defn transaction-response!
+  [body client]
+  (let [transaction (adapter/out-transaction->in (:body body))
+        db-transaction (adapter/in-transaction->db transaction)
         new-balance (when transaction (logic/new-balance client transaction))
-        return (when new-balance (adapter/balance->out client new-balance))]
+        balance-response (when new-balance (adapter/balance->out client new-balance))]
     (cond
-      (and valid-client? new-balance) (do (db.queries/update-client-balance (:id client) new-balance)
-                                   {:status 200
-                                    :headers {"Content-Type" "application/json"}
-                                    :body (json/write-str return)})
-
-      valid-client?                      {:status 422
-                                   :headers {"Content-Type" "text/plain"}
-                                   :body "Sorry baby, I can't deal with this 💅"}
-      :else {:status 404
-             :headers {"Content-Type" "text/plain"}
-             :body "Are you lost?"})))
+      new-balance (do
+                    (db.ops/do-transact [(assoc db-transaction
+                                                    :db/id [:cliente/id (:id client)])])
+                    (db.queries/update-client-balance (:id client) new-balance)
+                      {:status 200
+                       :headers {"Content-Type" "application/json"}
+                       :body (json/write-str balance-response)})
+      :else  {:status 422
+              :headers {"Content-Type" "text/plain"}
+              :body "Sorry baby, I can't deal with this 💅"})))
 
 (defn statement-response
-  [id]
-  (let [id (Integer/parseInt id)
-        client (when id (adapter/client-out->in id (db.queries/client id)))
-        valid-client? (not (logic/has-nil-value? client))
-        past-transactions (when valid-client? (db.queries/past-transactions id))
-        last-10-transactions (when past-transactions (logic/last-10-transactions past-transactions))]
-    (cond
-      (not valid-client?) {:status 404
-                           :headers {"Content-Type" "text/plain"}
-                           :body "Are you lost?"}
-
-      (and valid-client? last-10-transactions) {:status 200
-                                               :headers {"Content-Type" "application/json"}
-                                               :body (json/write-str (adapter/statement->out client last-10-transactions))})))
-
+  [_ client]
+    (let [last-10-transactions (db.queries/last-10-transactions (:id client))
+          statement (adapter/statement->out client last-10-transactions)]
+    {:status 200
+     :headers {"Content-Type" "application/json"}
+     :body (json/write-str statement)}))

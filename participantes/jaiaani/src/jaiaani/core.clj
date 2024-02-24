@@ -7,6 +7,9 @@
             [jaiaani.database.schema :as db.schema]
             [jaiaani.database.operations :as db.ops]))
 
+
+
+(db.ops/delete-database)
 (db.ops/create-database)
 (db.ops/do-transact db.schema/schema)
 (db.ops/do-transact db.data/initial-customers)
@@ -16,5 +19,5 @@
            (http/get-extract)
            (route/not-found "<h1> not found, honey 🍯</h1>"))
 (defn -main [& args]
-  (run-server app {:port 8081})
+  (run-server app {:port 8080})
   (println "Server started on port 8080"))
