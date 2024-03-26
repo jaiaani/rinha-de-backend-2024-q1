@@ -8,14 +8,15 @@
                          :transacoes/descricao description
                          :transacoes/realizada-em (str (time/now))}})
 
-(defn out-transaction->in
+(defn out-transaction->db
   [body]
   (let [value       (get body "valor")
         type        (get body "tipo")
         description (get body "descricao")]
-    {:value value
-     :type (keyword type)
-     :description description}))
+    {:cliente/transacoes {:transacoes/valor value
+                          :transacoes/tipo (keyword type)
+                          :transacoes/descricao description
+                          :transacoes/realizada-em (str (time/now))}}))
 
 (defn transaction-db->out
   [{:transacoes/keys [valor tipo descricao realizada-em]}]
@@ -34,15 +35,14 @@
        :balance balance}))
 
 (defn statement->out
-  [{:keys [balance limit]}
+  [{:cliente/keys [saldo limite]}
    last-transactions]
-  {:saldo {:total balance
-           :limite limit
+  {:saldo {:total saldo
+           :limite limite
            :data_extrato (str (time/now))}
-   :ultimas_transacoes (mapv #(transaction-db->out %)last-transactions)})
+   :ultimas_transacoes (mapv #(transaction-db->out %) last-transactions)})
 
 (defn balance->out
-  [{:keys [limit]}
-   new-balance]
-  {:saldo new-balance
-   :limite limit})
+  [{:cliente/keys [saldo limite]}]
+  {:saldo saldo
+   :limite limite})
